@@ -75,25 +75,37 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pbApplyCorrelation.clicked.connect(self.onPbApplyCorrelation)
         self.pbClear.clicked.connect(self.onPbClear)
         self.pbRefresh.clicked.connect(self.onPbRefresh)
-        self.pbUpdate.clicked.connect(self.onPbUpdate)
+        self.pbUpdate.clicked.connect(self.onPbUpdate)        
+
+    def onTwSoillayersCellChanged(self):
+        print('nu')
+        self._update_figure()
 
     def onPbUpdate(self):
         """Update the database with the data from the table"""
         cpt_id = self._cpt_ids[self._selected_index]
         sp1 = self._table_to_soilprofile1()
-        if len(sp1.soillayers) > 0:
-            s = f"{sp1.soillayers[0].top},{sp1.soillayers[0].bottom},{sp1.soillayers[0].soilcode}"
-            for sl in sp1.soillayers[1:]:
-                s += f",{sl.bottom},{sl.soilcode}"
-            self._database.add_cpt_interpretation(cpt_id, s)
+        self._database.add_cpt_interpretation(cpt_id, sp1.to_short_string())
 
     def onPbClear(self):
         """Clear the table"""
         self.twSoillayers.setRowCount(0)
+        self._update_figure()
+
 
     def onPbRefresh(self):
         """Refresh the table with the original input"""
-        pass
+        self._update_table_and_figure()
+
+    def _update_table_and_figure(self):        
+        cpt_id = self._cpt_ids[self._selected_index]
+        sp1 = self._database.get_cpt_interpretation(cpt_id)
+        if sp1:
+            self._soilprofile_to_table(sp1)            
+        else:
+            self.twSoillayers.setRowCount(0)        
+        
+        self._update_figure()        
 
     def onPbApplyCorrelation(self):
         """Apply the correlation to the cpt"""
@@ -106,25 +118,26 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
         # update table
         self.twSoillayers.setRowCount(len(sp1.soillayers))
         self._soilprofile_to_table(sp1)        
-        self.update()
+        self._update_figure()
+        
 
     def onPbFirstClicked(self):
         self._selected_index = 0
-        self.update()
+        self._update_table_and_figure()
 
     def onPbPrevClicked(self):
         if self._selected_index > 0:
             self._selected_index -= 1
-            self.update()
+            self._update_table_and_figure()
 
     def onPbNextClicked(self):
         if self._selected_index < len(self._cpts) - 1:
             self._selected_index += 1
-            self.update()
+            self._update_table_and_figure()
 
     def onPbLastClicked(self):
         self._selected_index = len(self._cpts) - 1
-        self.update()
+        self._update_table_and_figure()
 
     def _initialize_table(self):
         """Set up the table for the soillayers"""
@@ -150,13 +163,17 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
                 sp1.soillayers.append(SoilLayer(top=top, bottom=bottom, soilcode=name))
                 sp1._merge()
             except Exception as e:
-                print(e)
+                pass
 
         return sp1
 
     def _soilprofile_to_table(self, sp1: SoilProfile1):
+        # disconnect the oncellchanged signal while building the table
+        self.twSoillayers.disconnect()
+        
         soilcodes = [s.code for s in self._soil_collection.soils]
         for i, sl in enumerate(sp1.soillayers):
+            self.twSoillayers.setRowCount(len(sp1.soillayers))
             self.twSoillayers.setItem(i, 0, QtWidgets.QTableWidgetItem(f"{sl.top:.2f}"))
             self.twSoillayers.setItem(
                 i, 1, QtWidgets.QTableWidgetItem(f"{sl.bottom:.2f}")
@@ -172,28 +189,64 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"Error,could not find soilname '{sl.soilcode}' in the given resources, got error '{e}'"
                 )
 
-            cbSoillayers.currentIndexChanged.connect(self.update)
-            self.twSoillayers.setCellWidget(i, 2, cbSoillayers)
+            cbSoillayers.currentIndexChanged.connect(self._update_figure)
+            self.twSoillayers.setCellWidget(i, 2, cbSoillayers)  
+        
+        # connect to listen to changes again
+        self.twSoillayers.cellChanged.connect(self.onTwSoillayersCellChanged)          
 
     def set_cpts(self, cpts):
         assert len(cpts) > 0
         self._cpts = cpts
         self._selected_index = 0
-        self.update()
+        sp1 = self._database.get_cpt_interpretation(self._cpt_ids[self._selected_index])
+        if sp1:
+            self._soilprofile_to_table(sp1)
+        self._update_figure()
+        
 
     def set_cpt_ids(self, cpt_ids):
         self._cpt_ids = cpt_ids
 
+    def add_to_table(self, value: float):
+        nrows = self.twSoillayers.rowCount()
+        lastvalue = None
+        if nrows > 0:
+            item = self.twSoillayers.item(nrows-1, 1)
+            if item is not None:
+                lastvalue = float(self.twSoillayers.item(nrows-1, 1).text())
+
+        if nrows == 0: # first entry
+            self.twSoillayers.setRowCount(1)
+            self.twSoillayers.setItem(0, 0, QtWidgets.QTableWidgetItem(f"{value:.2f}"))
+            return
+                    
+        if lastvalue is None: # fill in the bottom value                         
+            self.twSoillayers.setItem(self.twSoillayers.rowCount()-1, 1, QtWidgets.QTableWidgetItem(f"{value:.2f}"))                
+        else: # create a new row and add the top from the previous line and the bottom from the clicked point
+            self.twSoillayers.setRowCount(self.twSoillayers.rowCount() + 1)
+            self.twSoillayers.setItem(self.twSoillayers.rowCount()-1, 0, QtWidgets.QTableWidgetItem(f"{lastvalue}"))
+            self.twSoillayers.setItem(self.twSoillayers.rowCount()-1, 1, QtWidgets.QTableWidgetItem(f"{value:.2f}"))
+
+        soilcodes = [s.code for s in self._soil_collection.soils]
+        cbSoillayers = QtWidgets.QComboBox()
+        cbSoillayers.addItems(soilcodes)
+        cbSoillayers.currentIndexChanged.connect(self._update_figure)
+        self.twSoillayers.setCellWidget(self.twSoillayers.rowCount()-1,2,cbSoillayers)
+        
+    
+    def remove_last_from_table(self):
+        if self.twSoillayers.rowCount() > 0:
+            self.twSoillayers.setRowCount(self.twSoillayers.rowCount()-1)    
+            self._update_figure()
+
     def onFigureMouseClicked(self, e):
         """Event that is called if the mouse is clicked within the figure"""
-        print("test")
-        # if self.cbLocations.currentIndex() < 0 or len(self.soilinvestigations) == 0:
-        #    return
-
-        # if e.button == MouseButton.RIGHT:
-        #    self.remove_last_from_table()
-        # elif e.button == MouseButton.LEFT:
-        #    self.add_to_table(e.ydata)
+        if e.button == MouseButton.RIGHT:
+            self.remove_last_from_table()
+        elif e.button == MouseButton.LEFT:
+            self.add_to_table(e.ydata)
+            self._update_figure()            
 
     def _update_figure(self):
         self._figure.clear()
@@ -239,13 +292,4 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
         self._figure.suptitle(f"{cpt.name}")
         self._canvas.draw()
 
-    def _update_table(self):
-        # RUSTIG NADENKEN EN SIMPEL HOUDEN
-        # check if something is in the database
-        # 
-        self.twSoillayers.setRowCount(0)
-
-
-    def update(self):   
-        self._update_table()     
-        self._update_figure()
+    

@@ -24,8 +24,8 @@
 import sys
 
 # import local leveelogic path
-if not 'D:/Data/Development/leveelogic/lib' in sys.path:
-    sys.path.append('D:/Data/Development/leveelogic/lib')
+if not 'D:/Development/python/leveelogic' in sys.path:
+    sys.path.append('D:/Development/python/leveelogic')
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
@@ -231,9 +231,11 @@ class CptViewer:
         if len(cpts) == 0:
             self.iface.messageBar().pushMessage("Error", "No valid cpts found, check the Python console for the error messages." + msg, level=Qgis.Critical)       
             return    
-            
+
+        # the next order matters!
+        self.dlg.set_cpt_ids(cpt_ids)                   
         self.dlg.set_cpts(cpts)
-        self.dlg.set_cpt_ids(cpt_ids)               
+        
 
         # show the dialog
         self.dlg.show()

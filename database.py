@@ -1,5 +1,6 @@
 import psycopg2
 from .secrets import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+from leveelogic.objects.soilprofile1 import SoilProfile1
 
 class Database:
     def __init__(self):
@@ -13,7 +14,7 @@ class Database:
         cur.close()        
         return row
 
-    def insert(self, sql):
+    def execute(self, sql):
         cur = self.conn.cursor()
         try:
             cur.execute(sql)
@@ -24,22 +25,25 @@ class Database:
         
         return True
 
-    def get_cpt_interpretation(self, cpt_id: int):
+    def get_cpt_interpretation(self, cpt_id: int) -> SoilProfile1:
         """Get the cpt interpretation data or None if cpt_id is not known"""
         row = self.select(f"SELECT raw FROM cpt_interpretations WHERE cpt_id={cpt_id}")
         if row:
-            return row[0]
+            return SoilProfile1.from_short_string(row[0])
         else:
             return None
 
     def add_cpt_interpretation(self, cpt_id: int, interpretation: str):
-        """If existing then update else add"""
+        """If existing then update (if interpretation is not empty string) or remove (if interpretation is empty string) else add"""
         if self.get_cpt_interpretation(cpt_id):
-            sql = f"UPDATE cpt_interpretations SET raw='{interpretation}' WHERE cpt_id={cpt_id}"
-            return self.insert(sql)
-        else:
+            if interpretation != "":
+                sql = f"UPDATE cpt_interpretations SET raw='{interpretation}' WHERE cpt_id={cpt_id}"
+            else:
+                sql = f"DELETE FROM cpt_interpretations WHERE cpt_id={cpt_id}"
+            return self.execute(sql)
+        elif interpretation != "":
             sql = f"INSERT INTO cpt_interpretations (cpt_id, raw) VALUES ({cpt_id}, '{interpretation}')"
-            return self.insert(sql)
+            return self.execute(sql)
         
 
 
