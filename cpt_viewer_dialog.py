@@ -75,10 +75,57 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pbApplyCorrelation.clicked.connect(self.onPbApplyCorrelation)
         self.pbClear.clicked.connect(self.onPbClear)
         self.pbRefresh.clicked.connect(self.onPbRefresh)
-        self.pbUpdate.clicked.connect(self.onPbUpdate)        
+        self.pbUpdate.clicked.connect(self.onPbUpdate) 
+        self.pbClipboard.clicked.connect(self.onPbClipboard)      
+        self.pbUpload.clicked.connect(self.onPbUpload)
 
+    def onPbUpload(self):
+        files = QtWidgets.QFileDialog.getOpenFileNames(
+            parent=self,
+            caption='Select a data file',
+            directory=os.getcwd(),
+            filter="*.gef",
+            initialFilter='GEF Files (*.gef)'
+        )[0]
+        
+        if len(files) == 0:
+            return
+
+        # get the metadata from the cpts in the database
+        cpt_metadata= self._database.get_cpt_metadata()
+
+        # add the new cpts
+        msg = []
+        for cpt_file in files:
+            try:
+                cpt = Cpt.from_file(cpt_file)
+                metadata = f"{round(cpt.latlon[0],6)}{round(cpt.latlon[1],6)}"
+                if metadata in cpt_metadata:
+                    msg.append(f"Sondering bestand {cpt_file} is al in de database aanwezig.")
+                    continue
+            
+                with open(cpt_file, encoding="utf-8", errors="ignore") as raw:
+                    self._database.add_cpt(cpt, raw.read())
+                
+            except Exception as e:
+                msg.append(f"Error importing {cpt_file}; {e}")
+
+        if len(msg) > 0:
+            msg.insert(0, "Er traden fouten op bij het importeren;")
+            text = "\n".join(msg)
+            QtWidgets.QMessageBox.warning(self, 'Cpt import', text, QtWidgets.QMessageBox.Ok, QtWidgets.QMessageBox.Ok)
+
+        
+
+    
+    def onPbClipboard(self):
+        sp1 = self._table_to_soilprofile1()
+        cb = QtWidgets.QApplication.clipboard()
+        cb.clear(mode=cb.Clipboard)
+        cb.setText(sp1.to_short_string(), mode=cb.Clipboard)
+        
+    
     def onTwSoillayersCellChanged(self):
-        print('nu')
         self._update_figure()
 
     def onPbUpdate(self):

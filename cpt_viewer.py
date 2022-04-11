@@ -24,8 +24,8 @@
 import sys
 
 # import local leveelogic path
-if not 'D:/Development/python/leveelogic' in sys.path:
-    sys.path.append('D:/Development/python/leveelogic')
+if not 'D:/Data/Development/leveelogic/lib' in sys.path:
+    sys.path.append('D:/Data/Development/leveelogic/lib')
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
