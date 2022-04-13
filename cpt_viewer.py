@@ -229,7 +229,7 @@ class CptViewer:
                 print(f"Error reading cpt {f['id']}; {e}\n")
 
         if len(cpts) == 0:
-            self.iface.messageBar().pushMessage("Error", "No valid cpts found, check the Python console for the error messages." + msg, level=Qgis.Critical)       
+            self.iface.messageBar().pushMessage("Error", "No valid cpts found, check the Python console for the error messages.", level=Qgis.Critical)       
             return    
 
         # the next order matters!

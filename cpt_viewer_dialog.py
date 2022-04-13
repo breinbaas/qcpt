@@ -114,9 +114,6 @@ class CptViewerDialog(QtWidgets.QDialog, FORM_CLASS):
             msg.insert(0, "Er traden fouten op bij het importeren;")
             text = "\n".join(msg)
             QtWidgets.QMessageBox.warning(self, 'Cpt import', text, QtWidgets.QMessageBox.Ok, QtWidgets.QMessageBox.Ok)
-
-        
-
     
     def onPbClipboard(self):
         sp1 = self._table_to_soilprofile1()
